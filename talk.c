@@ -30,7 +30,7 @@ int i;
     }
   } else {
     /* say something for test */
-    SayText("Sound check ....."); /* more dots - more delay*/
+    SayText("Sound check ....."); /* more dots, more delay */
     SayText("Hello ");
     SayText("world!");
 
