@@ -88,7 +88,6 @@ short ClipData(short dval, short dmin, short dmax) {
   return(dval);
 }
 
-#include <stdio.h>
 /* handy replacement for MoveTo1() / MoveTo2() / MoveFrom1() / MoveFrom2()
    note that all input and output strings must be at least 256 bytes long */
 short BufferData(char *s, char t) {
