@@ -19,6 +19,8 @@ Comments, questions and suggestions about this API implementation accepted here:
 
 https://github.com/systoolz/dosbtalk
 
+This code licensed under the Apache License, Version 2.0 (the "License") - see LICENSE file.
+
 
 V3 Sound Blaster initialization:
 
