@@ -2,10 +2,18 @@
 #include "speech.h"
 
 void SayText(char *s) {
+char p[256];
   /* display text */
   puts(s);
+  /* show phonetical format */
+  Parser(s, p, sizeof(p));
+  puts(p);
   /* say it */
   Say(s);
+  /*puts("SpeakM");
+  SpeakM(p, -1, -1, -1, -1);
+  puts("SpeakF");
+  SpeakF(p, -1, -1, -1, -1);*/
 }
 
 int main(int argc, char *argv[]) {
@@ -13,16 +21,18 @@ int i;
   /* silent, do not output anything */
   if (argc <= 1) {
     puts(
-      "Sound Blaster Talker Text-to-speech example test program.\n"
+      "First Byte Text-to-Speech Engine example program\n"
       "(c) SysTools 2023\n"
       "http://systools.losthost.org/\n\n"
       "Usage: talk [words] [to] [say] ...\n"
     );
   }
   if (!DetectSpeech()) {
-    puts("Error: SmoothTalker (SBTALKER) is not installed.\n");
+    puts("Error: First Byte Text-to-Speech Engine is not installed.\n");
     return(1);
   }
+  /* since all settings are global - restore to default if already altered */
+  ResetSpeech();
   if (argc > 1) {
     /* silent say */
     for (i = 1; i < argc; i++) {
@@ -42,9 +52,8 @@ int i;
     SetGlobals(-1, 1, 9, 9, 9);
     /* that sounds hilarious with this settings */
     SayText("Hello modified world!");
-
-    /* since all settings are global - it restore before exit */
-    ResetSpeech();
   }
+  /* since all settings are global - restore before exit */
+  ResetSpeech();
   return(0);
 }
