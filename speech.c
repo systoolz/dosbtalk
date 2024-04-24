@@ -62,10 +62,10 @@ Technology contained herein protected by one or more of the following U.S. paten
 #4,692,941 #4,617,645 #4,852,168 #4,805,220 #4,833,718
 */
 
-/* V3 only: taken from READ.EXE code */
+/* V3 only: taken from driver SBTALKER.EXE code */
 enum {
   TTS_V3_FUNC_PARSER = 0,
-  TTS_V3_FUNC_UNKNOWN = 1, /* unknown - code for this not present in READ.EXE */
+  TTS_V3_FUNC_RESET_DRIVER = 1,
   TTS_V3_FUNC_SET_GLOBALS = 2,
   TTS_V3_FUNC_DICT_INS = 3,
   TTS_V3_FUNC_INIT_DICT = 4,
@@ -73,7 +73,10 @@ enum {
   TTS_V3_FUNC_DICT_DUMP = 6,
   TTS_V3_FUNC_SAY = 7,
   TTS_V3_FUNC_SPEAKM = 8,
-  TTS_V3_FUNC_SPEAKF = 9
+  TTS_V3_FUNC_SPEAKF = 9,
+  /* 10 and 11 didn't exists in driver - do not call or this result in fatal error */
+  TTS_V3_FUNC_UNKNOWN_12 = 12, /* set callback1 far ptr from stack (removes from stack) */
+  TTS_V3_FUNC_UNKNOWN_13 = 13  /* set callback2 far ptr from stack (removes from stack) */
 };
 
 /* V4 only: taken from driver SPEECH.EXE code */
@@ -196,6 +199,17 @@ FPBYTE fp;
   return(i);
 }
 
+/* replacement for getvect() for compilers without it */
+void far *dosgetvector(unsigned char vnum) {
+struct SREGS sr;
+union REGS rs;
+  rs.h.al = vnum;
+  rs.h.ah = 0x35;
+  segread(&sr);
+  int86x(0x2F, &rs, &rs, &sr);
+  return(MK_FP(sr.es, rs.x.bx));
+}
+
 /* V3 only: unloads driver from memory */
 short Unload(void) {
 union REGS rs;
@@ -216,7 +230,7 @@ union REGS rs;
 FPWORD p;
   if (!EngineVersion) {
     /* check multiplex interrupt vector */
-    if (getvect(0x2F)) {
+    if (dosgetvector(0x2F)) {
       /* check service */
       rs.x.ax = 0xFBFB;
       segread(&sr);
@@ -271,13 +285,20 @@ FPWORD p;
 
 /* driver caller helper */
 long CallDriver(unsigned char id) {
-short di, si;
+short t_di, t_si;
 long r;
   r = 0;
   if (EngineVersion) {
     /* save registers */
-    di = _DI;
-    si = _SI;
+    #ifdef __TURBOC__
+    t_di = _DI;
+    t_si = _SI;
+    #else
+    _asm {
+      mov t_di, di;
+      mov t_si, si;
+    }
+    #endif
     if (EngineVersion == 3) {
       /* V3: xor 0x00 is useless, but this will put function argument to the AL register */
       r = fpDrvEntryV3(id ^ 0x00);
@@ -286,8 +307,15 @@ long r;
       r = fpDrvEntryV4(id);
     }
     /* restore registers */
-    _SI = si;
-    _DI = di;
+    #ifdef __TURBOC__
+    _SI = t_si;
+    _DI = t_di;
+    #else
+    _asm {
+      mov si, t_si;
+      mov di, t_di;
+    }
+    #endif
   }
   return(r);
 }
@@ -295,7 +323,7 @@ long r;
 /* write global settings to the driver memory */
 void UseGlobals(short gen, short ton, short vol, short pit, short spd) {
   if (EngineVersion) {
-    if (gen >= 0) { fpGlob[TTS_GLOB_GENDER] = gen; } /* unused */
+    if (gen >= 0) { fpGlob[TTS_GLOB_GENDER] = ClipData(gen, 0, 1); } /* unused */
     /* tone: 0 - bass; 1 - tremble */
     if (ton >= 0) { fpGlob[TTS_GLOB_TONE] = ClipData(ton, 0, 1); } /* unused */
     if (vol >= 0) { fpGlob[TTS_GLOB_VOLUME] = ClipData(vol, 0, 9); }
@@ -311,6 +339,17 @@ short r;
   if (EngineVersion) {
     UseGlobals(gen, ton, vol, pit, spd);
     r = (short) CallDriver((EngineVersion == 3) ? TTS_V3_FUNC_SET_GLOBALS : TTS_V4_FUNC_SET_GLOBALS);
+  }
+  return(r);
+}
+
+/* V3 only: resets all internal driver data to default values,
+   including globals and dictionary */
+short ResetDriver(void) {
+short r;
+  r = 0;
+  if (EngineVersion == 3) {
+    r = (short) CallDriver(TTS_V3_FUNC_RESET_DRIVER);
   }
   return(r);
 }
@@ -331,12 +370,13 @@ short r;
   return(r);
 }
 
-/* V3 only: unknown, untested (dictionary initialization?) */
+/* V3 only: dictionary initialization
+   act: 0 - soft init; 1 - hard init */
 short InitDict(short act) {
 short r;
   r = 0;
   if (EngineVersion == 3) {
-    fpGlob[TTS_GLOB_ACTION] = act;
+    fpGlob[TTS_GLOB_ACTION] = act ? 1 : 0;
     r = (short) CallDriver(TTS_V3_FUNC_INIT_DICT);
   }
   return(r);
@@ -379,7 +419,9 @@ long r;
 }
 
 /* say text with current global voice settings defined by SetGlobals()
-in V3 driver max text length limited to 255 bytes */
+in V3 driver:
+- max text length limited to 255 bytes with first (zero) byte used for length (Pascal string)
+- byte-length in first and second buffer will be replaced with zero on return */
 short Say(char *engstr) {
 short r;
   r = 0;
@@ -397,7 +439,6 @@ short r;
   r = 0;
   if (EngineVersion) {
     UseGlobals(-1, ton, vol, pit, spd);
-    /* bug in READ.EXE code (V3) - text was misplaced into second buffer here */
     BufferData(phonstr, TTS_DATA_WRITE | 0, 0);
     r = (short) CallDriver((EngineVersion == 3) ? TTS_V3_FUNC_SPEAKM : TTS_V4_FUNC_SPEAKM);
   }
@@ -411,7 +452,6 @@ short r;
   r = 0;
   if (EngineVersion) {
     UseGlobals(-1, ton, vol, pit, spd);
-    /* bug in READ.EXE code (V3) - text was misplaced into second buffer here */
     BufferData(phonstr, TTS_DATA_WRITE | 0, 0);
     r = (short) CallDriver((EngineVersion == 3) ? TTS_V3_FUNC_SPEAKF : TTS_V4_FUNC_SPEAKF);
   }
@@ -424,7 +464,7 @@ FPWORD fp;
 short r;
   r = 0;
   if (EngineVersion == 3) {
-    fp = (FPWORD) getvect(0xF3);
+    fp = (FPWORD) dosgetvector(0xF3);
     if (fp) {
       /* program help says from 0 to 4000 but actual code clip it at 3950 */
       *fp = ClipData(parm, 0, 3950);

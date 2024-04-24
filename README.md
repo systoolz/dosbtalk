@@ -1,6 +1,10 @@
 # dosbtalk
 This is unofficial API implementation for Text-to-Speech Engine by First Byte.
 
+Created for Yeo Kheng Meng's [DOS ChatGPT client](https://github.com/yeokm1/doschgpt).
+You can read more here:
+[Building a DOS ChatGPT client in 2023](https://yeokhengmeng.com/2023/03/building-a-dos-chatgpt-client-in-2023/).
+
 You can obtain this Engine here (V3, SmoothTalker, Sound Blaster only):
 
 https://winworldpc.com/product/dr-sbaitso/2x

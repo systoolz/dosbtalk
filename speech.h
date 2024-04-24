@@ -7,6 +7,7 @@ extern "C" {
 
 short DetectSpeech(void);
 short SetGlobals(short gen, short ton, short vol, short pit, short spd);
+short ResetDriver(void);
 short Parser(char *engstr, char *phonstr, unsigned short count);
 short Say(char *engstr);
 short SetEcho(short parm);
