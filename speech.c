@@ -206,7 +206,7 @@ union REGS rs;
   rs.h.al = vnum;
   rs.h.ah = 0x35;
   segread(&sr);
-  int86x(0x2F, &rs, &rs, &sr);
+  int86x(0x21, &rs, &rs, &sr);
   return(MK_FP(sr.es, rs.x.bx));
 }
 
